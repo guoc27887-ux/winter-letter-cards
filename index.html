@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>冬日来信 · 陈晓琳</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; }
+  body {
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    background:linear-gradient(180deg,#1b2340 0%,#2a3560 55%,#3d4a7d 100%);
+    color:#fff; position:relative;
+  }
+  #snow { position:fixed; inset:0; z-index:1; pointer-events:none; }
+  .topbar {
+    position:fixed; top:0; left:0; right:0; height:52px; z-index:30;
+    background:rgba(10,12,24,.92); display:flex; align-items:center; justify-content:center;
+    font-size:19px; letter-spacing:4px; font-weight:600;
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  #musicBtn {
+    position:fixed; top:64px; right:14px; z-index:40; width:42px; height:42px;
+    border-radius:50%; border:1px solid rgba(255,255,255,.35);
+    background:rgba(255,255,255,.14); color:#fff; font-size:19px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px);
+  }
+  #musicBtn.off { opacity:.45; }
+  #stage { position:fixed; inset:0; z-index:5; }
+  .card {
+    position:absolute; width:212px; max-width:62vw; padding:26px 16px 14px;
+    border-radius:12px; color:#3a3444; box-shadow:0 10px 28px rgba(0,0,0,.35);
+    font-size:15.5px; line-height:1.55; font-weight:600; text-align:center;
+    opacity:0; transform:scale(.4) rotate(var(--rot,0deg));
+  }
+  .card::before {
+    content:""; position:absolute; top:9px; left:12px; width:9px; height:9px; border-radius:50%;
+    background:#ff5f57; box-shadow:15px 0 0 #febc2e, 30px 0 0 #28c840;
+  }
+  .card.show { animation:pop .38s cubic-bezier(.2,1.6,.4,1) forwards; }
+  @keyframes pop {
+    0% { opacity:0; transform:scale(.4) rotate(var(--rot,0deg)); }
+    100% { opacity:1; transform:scale(1) rotate(var(--rot,0deg)); }
+  }
+  .overlay {
+    position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    background:rgba(8,10,20,.45); transition:opacity .35s;
+  }
+  .overlay.hide { opacity:0; pointer-events:none; }
+  .dialog {
+    width:300px; max-width:84vw; background:#fff; color:#333; border-radius:18px;
+    padding:28px 24px 20px; text-align:center; box-shadow:0 18px 50px rgba(0,0,0,.45);
+    animation:din .45s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes din { from { transform:scale(.8); opacity:0; } to { transform:scale(1); opacity:1; } }
+  .dialog .env { font-size:40px; margin-bottom:10px; }
+  .dialog p { font-size:16.5px; line-height:1.65; color:#3c3748; }
+  .dialog .btns { margin-top:20px; display:flex; gap:12px; }
+  .dialog button {
+    flex:1; padding:11px 0; border:none; border-radius:999px; font-size:15.5px; cursor:pointer;
+  }
+  .dialog .ok { background:#ff7d9c; color:#fff; font-weight:700; }
+  .dialog .ok:active { transform:scale(.94); }
+  .dialog .no { background:#f0eef4; color:#8a8496; }
+  #replay {
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%); z-index:40;
+    padding:10px 26px; border-radius:999px; border:1px solid rgba(255,255,255,.4);
+    background:rgba(255,255,255,.16); color:#fff; font-size:15px; cursor:pointer;
+    opacity:0; pointer-events:none; transition:opacity .5s; backdrop-filter:blur(4px);
+  }
+  #replay.show { opacity:1; pointer-events:auto; }
+</style>
+</head>
+<body>
+<canvas id="snow"></canvas>
+<div class="topbar">❄ 冬 日 快 乐</div>
+<button id="musicBtn" class="off" title="音乐开关">♪</button>
+<div id="stage"></div>
+
+<div class="overlay" id="overlay">
+  <div class="dialog">
+    <div class="env">💌</div>
+    <p>陈晓琳，你有一封冬日来信，<br>确定要打开吗？</p>
+    <div class="btns">
+      <button class="no" id="noBtn">再想想</button>
+      <button class="ok" id="okBtn">确定</button>
+    </div>
+  </div>
+</div>
+
+<button id="replay">↻ 再看一次</button>
+
+<script>
+const TEXTS = [
+  "陈晓琳，冬日快乐",
+  "天冷了，多穿衣服",
+  "你是最棒的",
+  "浪漫的不是雪，而是有你的冬天",
+  "按时吃饭，记得开心",
+  "这个冬天我们会见面吗",
+  "愿所有烦恼都消失",
+  "学会爱自己，才能更好地爱别人",
+  "别太累啦，偶尔偷懒也好",
+  "寒来暑往，秋收冬藏",
+  "搓搓小手，准备迎接冬天的好运啦",
+  "我期待的不是雪，而是有你的冬天",
+  "所有美好都如期而至",
+  "这封信，只写给陈晓琳一个人"
+];
+const PASTELS = ["#ffd7e6","#ddd6fe","#c9f2dd","#cdf0fd","#ffe3c2","#fff3b0","#ffc9c9","#e7d4ff"];
+const stage = document.getElementById('stage');
+const overlay = document.getElementById('overlay');
+const replayBtn = document.getElementById('replay');
+const musicBtn = document.getElementById('musicBtn');
+
+// seeded pseudo random so layout looks good every load
+let seed = 20261118;
+function rnd(){ seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+
+let audioCtx = null, musicOn = false, musicTimer = null, noteIdx = 0;
+function ac(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq, t, dur, type, gainVal){
+  const ctx = ac(), o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gainVal, t + 0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function popSound(){
+  if(!musicOn) return;
+  const ctx = ac(), t = ctx.currentTime;
+  tone(620 + Math.random()*260, t, 0.12, 'sine', 0.12);
+}
+// Jingle Bells, music-box style (sine + harmonic)
+const MELODY = [
+  [659,.25],[659,.25],[659,.5],[659,.25],[659,.25],[659,.5],
+  [659,.25],[784,.25],[523,.375],[587,.125],[659,1],
+  [698,.25],[698,.25],[698,.375],[698,.125],[698,.25],[659,.25],[659,.25],[659,.125],[659,.125],
+  [659,.25],[587,.25],[587,.25],[659,.25],[587,.5],[784,.5],
+  [659,.25],[659,.25],[659,.5],[659,.25],[659,.25],[659,.5],
+  [659,.25],[784,.25],[523,.375],[587,.125],[659,1],
+  [698,.25],[698,.25],[698,.375],[698,.125],[698,.25],[659,.25],[659,.25],[659,.125],[659,.125],
+  [587,.25],[587,.25],[659,.25],[523,.5],[0,.5]
+];
+const BEAT = 0.42;
+function playNote(){
+  if(!musicOn) return;
+  const [f, b] = MELODY[noteIdx % MELODY.length];
+  noteIdx++;
+  if(f > 0){
+    const ctx = ac(), t = ctx.currentTime;
+    tone(f, t, Math.min(b * BEAT * 2.2, 1.1), 'sine', 0.16);
+    tone(f * 2, t, Math.min(b * BEAT * 1.4, 0.7), 'sine', 0.045);
+  }
+  musicTimer = setTimeout(playNote, b * BEAT * 1000);
+}
+function startMusic(){
+  musicOn = true; musicBtn.classList.remove('off');
+  noteIdx = 0; playNote();
+}
+function stopMusic(){
+  musicOn = false; musicBtn.classList.add('off');
+  if(musicTimer) clearTimeout(musicTimer);
+}
+musicBtn.addEventListener('click', () => { ac(); musicOn ? stopMusic() : startMusic(); });
+
+let timers = [];
+function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+function startShow(){
+  clearTimers();
+  stage.innerHTML = '';
+  replayBtn.classList.remove('show');
+  seed = 20261118;
+  const W = window.innerWidth, H = window.innerHeight;
+  const spots = [];
+  TEXTS.forEach((txt, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.textContent = txt;
+    card.style.background = PASTELS[i % PASTELS.length];
+    const cw = Math.min(212, W * 0.62);
+    let x = 8, y = 110;
+    for(let k = 0; k < 60; k++){
+      x = 8 + rnd() * Math.max(10, W - cw - 16);
+      y = 96 + rnd() * Math.max(10, H - 210);
+      if(spots.slice(-4).every(([sx, sy]) => Math.abs(x - sx) > 60 || Math.abs(y - sy) > 46)) break;
+    }
+    spots.push([x, y]);
+    card.style.left = x + 'px';
+    card.style.top = y + 'px';
+    card.style.setProperty('--rot', (rnd() * 10 - 5).toFixed(1) + 'deg');
+    card.style.zIndex = 10 + i;
+    stage.appendChild(card);
+    timers.push(setTimeout(() => { card.classList.add('show'); popSound(); }, 350 + i * 870));
+  });
+  timers.push(setTimeout(() => replayBtn.classList.add('show'), 350 + TEXTS.length * 870 + 500));
+}
+
+document.getElementById('okBtn').addEventListener('click', () => {
+  ac(); startMusic();
+  overlay.classList.add('hide');
+  startShow();
+});
+document.getElementById('noBtn').addEventListener('click', () => {
+  const b = document.getElementById('noBtn');
+  b.textContent = '不行，必须打开 💌';
+  setTimeout(() => document.getElementById('okBtn').click(), 650);
+});
+replayBtn.addEventListener('click', startShow);
+
+// snow
+const cv = document.getElementById('snow'), cx = cv.getContext('2d');
+let flakes = [];
+function resize(){
+  cv.width = window.innerWidth; cv.height = window.innerHeight;
+  flakes = Array.from({length: 90}, () => ({
+    x: Math.random()*cv.width, y: Math.random()*cv.height,
+    r: 1 + Math.random()*1.8, s: 0.6 + Math.random()*1.4, p: Math.random()*6.28
+  }));
+}
+window.addEventListener('resize', resize); resize();
+(function loop(){
+  cx.clearRect(0, 0, cv.width, cv.height);
+  cx.fillStyle = 'rgba(255,255,255,.85)';
+  flakes.forEach(f => {
+    f.y += f.s; f.p += 0.012; f.x += Math.sin(f.p) * 0.5;
+    if(f.y > cv.height + 4){ f.y = -4; f.x = Math.random()*cv.width; }
+    cx.beginPath(); cx.arc(f.x, f.y, f.r, 0, 6.29); cx.fill();
+  });
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
